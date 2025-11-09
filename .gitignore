@@ -1,9 +1,9 @@
 # Files and directories created by the build system
-build
+/build
 sdkconfig
 sdkconfig.old
 dependencies.lock
-managed_components
+/managed_components
 
 # VS Code files
 .vscode/
