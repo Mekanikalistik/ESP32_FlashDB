@@ -1,0 +1,33 @@
+# Files and directories created by the build system
+build
+sdkconfig
+sdkconfig.old
+dependencies.lock
+managed_components
+
+# VS Code files
+.vscode/
+.history/
+
+# ESP-IDF specific files
+bootloader_console_log.txt
+# ESP-IDF temporary files
+.esp_idf_tools.json
+.vscode
+
+# Python virtual environment
+.venv
+
+# Other common ignored files
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+*.backup
+*.swp
+*~
+.#*
+.DS_Store
+Thumbs.db
