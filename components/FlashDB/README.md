@@ -1,6 +1,6 @@
 # FlashDB ESP-IDF Component
 
-This document provides guidance on configuring and integrating the FlashDB library as a modular component within an ESP-IDF project.
+This document provides comprehensive guidance on configuring and integrating the FlashDB library as a modular component within an ESP-IDF project. It covers essential configuration, partition management, and usage examples tailored for the ESP32 platform.
 
 ## 1. Overview
 
@@ -8,11 +8,11 @@ The FlashDB component provides an ultra-lightweight embedded database solution f
 
 ## 2. Configuration
 
-All primary FlashDB component configurations are managed through `components/FlashDB/inc/fdb_cfg.h`. This file contains a dedicated "FlashDB Configuration Section" where you can adjust various parameters.
+All primary FlashDB component configurations are managed through `components/FlashDB/inc/fdb_cfg.h` and `components/FlashDB/inc/fal_cfg.h`. These files contain dedicated sections where you can adjust various parameters to suit your project's needs.
 
 ### `components/FlashDB/inc/fdb_cfg.h`
 
-This file is your central point for configuring FlashDB.
+This file is your central point for configuring FlashDB's core features and parameters.
 
 ```c
 /* ================================================================================================= */
@@ -33,9 +33,8 @@ This file is your central point for configuring FlashDB.
 /* --- Flash Parameters Configuration --- */
 // The flash write granularity, unit: bit.
 // This value depends on your flash chip's smallest programmable unit.
-// For ESP32, the recommended value is 8 bits (1 byte) for robust operation.
-// (e.g., 1 for NOR Flash, 8 for STM32F2/F4/ESP32)
-#define FDB_WRITE_GRAN 8
+// For ESP32 SPI flash, the recommended value is 1 bit for robust operation.
+#define FDB_WRITE_GRAN 1
 
 /* --- Timestamp Configuration --- */
 // Uncomment to enable 64-bit timestamps (int64_t) for TSDB.
@@ -53,25 +52,44 @@ This file is your central point for configuring FlashDB.
 /* ================================================================================================= */
 /* ============================= End FlashDB Configuration Section ============================= */
 /* ================================================================================================= */
+
+/* --- Internal/Toolchain Configuration (usually no need to change) --- */
+
+/* log print macro using ESP_LOG.
+ * Need to include esp_log.h in fdb_def.h when setting FDB_PRINT to ESP_LOGI().
+ * default EF_PRINT macro is printf() */
+#define FDB_PRINT(...) ESP_LOGI("fdb", __VA_ARGS__)
+
+/* print debug information */
+#define FDB_DEBUG_ENABLE
 ```
 
 ### `components/FlashDB/inc/fal_cfg.h`
 
-This file defines the logical partition table used by the Flash Abstraction Layer. It references the size macros defined in `fdb_cfg.h`.
+This file configures the Flash Abstraction Layer (FAL), defining flash devices and logical partitions.
 
 ```c
 // Example content (actual content will vary based on fdb_cfg.h macros)
+#define FAL_PART_HAS_TABLE_CFG
+#define NOR_FLASH_DEV_NAME "esp32_flash" // Consistent flash device name
+
 #define FAL_PART_TABLE                                                               \
 {                                                                                    \
     {FAL_PART_MAGIC_WORD, "fdb_kvdb1", NOR_FLASH_DEV_NAME, 0,           FDB_KVDB1_SIZE, 0}, \
     {FAL_PART_MAGIC_WORD, "fdb_tsdb1", NOR_FLASH_DEV_NAME, FDB_KVDB1_SIZE,  FDB_TSDB1_SIZE, 0}, \
 }
 ```
-You should ensure that `NOR_FLASH_DEV_NAME` (which is `"norflash0"` by default in this file) is consistent with the Flash device name used in `fal_flash_esp32_port.c`.
+Ensure that `NOR_FLASH_DEV_NAME` is consistent with the Flash device name used in `fal_flash_esp32_port.c`.
 
-## 3. Synchronization with `partitions.csv`
+### `components/FlashDB/port/fal_flash_esp32_port.c`
 
-The FlashDB component expects a **physical flash partition named `flashdb`** to be defined in your project's `partitions.csv` file. This name is hardcoded in `components/FlashDB/port/fal_flash_esp32_port.c` and must match exactly.
+This file provides the ESP32-specific porting layer for FAL, interfacing with the ESP-IDF `esp_partition` API.
+
+It defines the physical flash device (`esp32_flash`) and its operations (`init`, `read`, `write`, `erase`).
+
+## 3. Partition Table (`partitions.csv`)
+
+The FlashDB component expects a **physical flash partition named `flashdb`** to be defined in your project's `partitions.csv` file. This name is used by the `fal_flash_esp32_port.c` to locate the physical flash region.
 
 ### `partitions.csv` (Project Root)
 
@@ -79,7 +97,7 @@ Ensure your `partitions.csv` contains an entry similar to this:
 
 ```csv
 # Name,   Type, SubType, Offset,  Size, Flags
-flashdb,  0x40, 0x00,          ,  1M,
+flashdb,  0x40, 0x00,          ,  1M,    // Custom FlashDB partition
 ```
 
 *   **`Name`**: Must be `flashdb`.
@@ -87,155 +105,39 @@ flashdb,  0x40, 0x00,          ,  1M,
 *   **`SubType`**: Must be `0x00`.
 *   **`Size`**: The total size of this partition must be **equal to or greater than** the sum of `FDB_KVDB1_SIZE` and `FDB_TSDB1_SIZE` defined in `fdb_cfg.h`. For example, if `FDB_KVDB1_SIZE` is 512KB and `FDB_TSDB1_SIZE` is 512KB, then the `flashdb` partition should be at least 1MB.
 
-## 4. Usage in `main/CMakeLists.txt`
+## 4. CMake Configuration
 
-To use the FlashDB component in your main application, ensure your `main/CMakeLists.txt` declares a dependency on `FlashDB`:
+To correctly build the FlashDB component and your main application, ensure your `CMakeLists.txt` files declare the necessary dependencies.
+
+### `components/FlashDB/CMakeLists.txt`
+
+```cmake
+idf_component_register(SRCS "${SOURCES}"
+                    INCLUDE_DIRS "${INCLUDE_DIRS}"
+                    REQUIRES spi_flash esp_partition esp_rom freertos log esp_system)
+```
+Ensure `log`, `esp_system`, `freertos`, `spi_flash`, `esp_partition`, and `esp_rom` are listed under `REQUIRES` or `PRIV_REQUIRES` to resolve all necessary headers and libraries.
+
+### `main/CMakeLists.txt`
 
 ```cmake
 idf_component_register(SRCS "main.c"
+                           "../samples/kvdb_basic_sample.c"
+                           "../samples/kvdb_type_blob_sample.c"
+                           "../samples/kvdb_type_string_sample.c"
+                           "../samples/tsdb_sample.c"
                     INCLUDE_DIRS "."
-                    REQUIRES FlashDB)
+                    REQUIRES FlashDB nvs_flash spi_flash freertos esp_system esp_partition)
 ```
+Ensure `FlashDB` is listed under `REQUIRES` to link the component correctly. Also, include other necessary ESP-IDF components like `nvs_flash`, `spi_flash`, `freertos`, `esp_system`, and `esp_partition`.
 
-## 5. Using the API in your application
+## 5. Using the API in your application (`main.c`)
 
-Include `flashdb.h` in your application files:
+Include `flashdb.h` in your application files and ensure the FlashDB initialization function (`flashdb_app_init()`) is called.
 
 ```c
-#include <flashdb.h>
-```
-
-Then initialize and use the KVDB and TSDB APIs as demonstrated in the `samples/` directory.
-
-## 6. Important Notes
-
-*   **No Source Code Modification:** This component is designed to work without modifying any of the core FlashDB library source files.
-*   **Warnings in Samples:** The provided sample files might generate compiler warnings (`-Wmaybe-uninitialized`) due to strict ESP-IDF compiler settings. These are handled by adding `-Wno-error=maybe-uninitialized` to your project's root `CMakeLists.txt`.
-*   **Timestamp Format:** For 32-bit timestamps, ensure that any `printf` format specifiers used for `fdb_time_t` are `ld` (for `long int`).
-
-## 7. How to Use in `main.c` (Example Integration)
-
-This section provides a simplified guide on how to integrate and use the FlashDB component in your ESP-IDF `main.c` file. For a complete working example, refer to the project's `main/main.c` and `samples/` directories.
-
-### Basic Initialization and Usage
-
-```c
-#include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "esp_system.h"
-#include "esp_flash_spi_init.h" // Required for esp_flash_get_size
-#include "spi_flash_mmap.h"     // Required for esp_flash_get_size
-#include "esp_chip_info.h"      // Required for esp_chip_info
-
 #include <flashdb.h> // Main FlashDB header
 
-// --- FlashDB Global Variables ---
-static uint32_t boot_count = 0;
-// Example default KV nodes. These will be added if not already present.
-static struct fdb_default_kv_node default_kv_table[] = {
-   {"username", "armink", 0},                       /* string KV */
-   {"password", "123456", 0},                       /* string KV */
-   {"boot_count", &boot_count, sizeof(boot_count)}, /* int type KV */
-};
-// KVDB object instance
-static struct fdb_kvdb kvdb = {0};
-// TSDB object instance
-struct fdb_tsdb tsdb = {0};
-// Counter for simulated timestamp (replace with actual RTC in production)
-static int s_tsdb_counts = 0;
-// Semaphore for thread-safe access to FlashDB
-static SemaphoreHandle_t s_flashdb_lock = NULL;
-
-// --- FlashDB Lock/Unlock Functions (for thread safety) ---
-static void lock_flashdb_access(fdb_db_t db)
-{
-   if (s_flashdb_lock) {
-       xSemaphoreTake(s_flashdb_lock, portMAX_DELAY);
-   }
-}
-
-static void unlock_flashdb_access(fdb_db_t db)
-{
-   if (s_flashdb_lock) {
-       xSemaphoreGive(s_flashdb_lock);
-   }
-}
-
-// --- Simulated Timestamp Function (replace with actual RTC in production) ---
-static fdb_time_t get_current_timestamp(void)
-{
-   return ++s_tsdb_counts;
-}
-
-// --- FlashDB Demo Function ---
-void flashdb_app_init(void)
-{
-   fdb_err_t result;
-
-   // Initialize the FlashDB access semaphore
-   if (s_flashdb_lock == NULL)
-   {
-       s_flashdb_lock = xSemaphoreCreateCounting(1, 1);
-       assert(s_flashdb_lock != NULL);
-   }
-
-#ifdef FDB_USING_KVDB
-   {
-       struct fdb_default_kv default_kv;
-
-       default_kv.kvs = default_kv_table;
-       default_kv.num = sizeof(default_kv_table) / sizeof(default_kv_table[0]);
-
-       // Set the lock and unlock functions for thread-safe access
-       fdb_kvdb_control(&kvdb, FDB_KVDB_CTRL_SET_LOCK, lock_flashdb_access);
-       fdb_kvdb_control(&kvdb, FDB_KVDB_CTRL_SET_UNLOCK, unlock_flashdb_access);
-
-       // Initialize Key-Value database
-       // "env": database name
-       // "fdb_kvdb1": Logical partition name (from fal_cfg.h). Must be in FAL partition table.
-       result = fdb_kvdb_init(&kvdb, "env", "fdb_kvdb1", &default_kv, NULL);
-
-       if (result != FDB_NO_ERR) {
-           ESP_LOGE("FlashDB", "KVDB initialization failed: %d", result);
-       } else {
-           ESP_LOGI("FlashDB", "KVDB initialized successfully.");
-           // Example KV usage:
-           // fdb_kv_set(&kvdb, "my_setting", "value");
-           // char *value = fdb_kv_get(&kvdb, "my_setting");
-       }
-   }
-#endif // FDB_USING_KVDB
-
-#ifdef FDB_USING_TSDB
-   {
-       // Set the lock and unlock functions for thread-safe access
-       fdb_tsdb_control(&tsdb, FDB_TSDB_CTRL_SET_LOCK, lock_flashdb_access);
-       fdb_tsdb_control(&tsdb, FDB_TSDB_CTRL_SET_UNLOCK, unlock_flashdb_access);
-
-       // Initialize Time Series Database
-       // "log": database name
-       // "fdb_tsdb1": Logical partition name (from fal_cfg.h). Must be in FAL partition table.
-       // get_current_timestamp: Function to get current timestamp
-       // 128: Maximum length of each log entry
-       result = fdb_tsdb_init(&tsdb, "log", "fdb_tsdb1", get_current_timestamp, 128, NULL);
-
-       if (result != FDB_NO_ERR) {
-           ESP_LOGE("FlashDB", "TSDB initialization failed: %d", result);
-       } else {
-           ESP_LOGI("FlashDB", "TSDB initialized successfully.");
-           // Example TSDB usage:
-           // struct sensor_data { int temp; int humi; };
-           // struct sensor_data data = {25, 60};
-           // struct fdb_blob blob;
-           // fdb_tsl_append(&tsdb, fdb_blob_make(&blob, &data, sizeof(data)));
-       }
-   }
-#endif // FDB_USING_TSDB
-}
-
-// --- ESP-IDF Application Entry Point ---
 void app_main()
 {
    ESP_LOGI("APP", "Starting FlashDB ESP-IDF Demo");
@@ -243,18 +145,16 @@ void app_main()
    // Initialize FlashDB (KVDB and TSDB)
    flashdb_app_init();
 
-   // You can call sample functions or integrate your own FlashDB logic here
-   // For example:
-   // kvdb_basic_sample(&kvdb);
-   // tsdb_sample(&tsdb);
-
-   // Main application loop (example: sleep and restart)
-   for (int i = 1000; i >= 0; i--)
-   {
-       ESP_LOGI("APP", "Restarting in %d seconds...", i);
-       vTaskDelay(1000 / portTICK_PERIOD_MS);
-   }
-   ESP_LOGI("APP", "Restarting now.");
-   esp_restart();
+   // ... rest of your application logic ...
 }
+```
+
+## 6. Important Notes
+
+*   **No Core Source Code Modification:** This component is designed to work without modifying any of the core FlashDB library source files (`fal.c`, `fal_partition.c`, `fdb.c`, etc.). All ESP-IDF specific adaptations are confined to `fal_flash_esp32_port.c` and configuration headers.
+*   **`FDB_WRITE_GRAN`:** For ESP32 SPI flash, `FDB_WRITE_GRAN` should be set to `1` bit in `fdb_cfg.h`. This value reflects the smallest programmable unit of the flash, ensuring optimal performance and data integrity with FlashDB's internal mechanisms.
+*   **Error Handling:** The `fal_flash_esp32_port.c` includes robust error handling for partition discovery, logging errors with `ESP_LOGE` and returning appropriate error codes.
+*   **Logging:** FlashDB's logging (`FDB_PRINT`) is configured to use ESP-IDF's `ESP_LOGI` for better integration with the system's logging framework.
+*   **Warnings in Samples:** The provided sample files might generate compiler warnings (`-Wmaybe-uninitialized`) due to strict ESP-IDF compiler settings. These are often handled by adding `-Wno-error=maybe-uninitialized` to your project's root `CMakeLists.txt`.
+*   **Timestamp Format:** For 32-bit timestamps, ensure that any `printf` format specifiers used for `fdb_time_t` are `ld` (for `long int`).
 ```
