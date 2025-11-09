@@ -283,6 +283,7 @@ fdb_tsl_iter(&tsdb, ts_query_cb, NULL);
 
 ## 6. Important Notes
 
+*   **NVS Initialization Order:** It is crucial to initialize NVS (Non-Volatile Storage) using `nvs_flash_init()` before initializing FlashDB. Many core ESP-IDF components rely on NVS for their configuration data. Initializing NVS first ensures these system-level dependencies are met and the underlying flash access mechanisms are stable before FlashDB initializes its own abstraction layer.
 *   **No Core Source Code Modification:** This component is designed to work without modifying any of the core FlashDB library source files (`fal.c`, `fal_partition.c`, `fdb.c`, etc.). All ESP-IDF specific adaptations are confined to `fal_flash_esp32_port.c` and configuration headers.
 *   **`FDB_WRITE_GRAN`:** For ESP32 SPI flash, `FDB_WRITE_GRAN` should be set to `1` bit in `fdb_cfg.h`. This value reflects the smallest programmable unit of the flash, ensuring optimal performance and data integrity with FlashDB's internal mechanisms.
 *   **`FDB_TOTAL_PARTITION_SIZE`:** This macro, defined in `fdb_cfg.h`, represents the total size of the physical "flashdb" partition in `partitions.csv`. It is crucial for correctly configuring the flash device length in `fal_flash_esp32_port.c`.
