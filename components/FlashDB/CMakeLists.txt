@@ -16,6 +16,6 @@ set(INCLUDE_DIRS
 
 idf_component_register(SRCS "${SOURCES}"
                     INCLUDE_DIRS "${INCLUDE_DIRS}"
-                    REQUIRES spi_flash esp_partition esp_rom)
+                    REQUIRES spi_flash esp_partition esp_rom log freertos esp_system)
 
 target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/inc")

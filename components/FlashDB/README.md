@@ -118,9 +118,9 @@ To correctly build the FlashDB component and your main application, ensure your 
 ```cmake
 idf_component_register(SRCS "${SOURCES}"
                     INCLUDE_DIRS "${INCLUDE_DIRS}"
-                    REQUIRES spi_flash esp_partition esp_rom freertos log esp_system)
+                    REQUIRES spi_flash esp_partition esp_rom log freertos esp_system)
 ```
-Ensure `log`, `esp_system`, `freertos`, `spi_flash`, `esp_partition`, and `esp_rom` are listed under `REQUIRES` or `PRIV_REQUIRES` to resolve all necessary headers and libraries.
+The FlashDB component explicitly requires `spi_flash`, `esp_partition`, `esp_rom`, `log`, `freertos`, and `esp_system` for its full functionality and to ensure it is self-contained.
 
 ### `main/CMakeLists.txt`
 
@@ -131,9 +131,9 @@ idf_component_register(SRCS "main.c"
                            "../samples/kvdb_type_string_sample.c"
                            "../samples/tsdb_sample.c"
                     INCLUDE_DIRS "."
-                    REQUIRES FlashDB nvs_flash spi_flash freertos esp_system esp_partition)
+                    REQUIRES FlashDB nvs_flash spi_flash freertos esp_system log)
 ```
-Ensure `FlashDB` is listed under `REQUIRES` to link the component correctly. Also, include other necessary ESP-IDF components like `nvs_flash`, `spi_flash`, `freertos`, `esp_system`, and `esp_partition`.
+The main application's `CMakeLists.txt` declares dependencies that `main.c` directly uses, as well as the `FlashDB` component. Based on `main.c`'s includes, the required components are `FlashDB`, `nvs_flash`, `spi_flash`, `freertos`, `esp_system`, and `log`. `esp_partition` and `esp_rom` are handled by the FlashDB component's `CMakeLists.txt`.
 
 ## 5. Using the API in your application (`main.c`)
 
