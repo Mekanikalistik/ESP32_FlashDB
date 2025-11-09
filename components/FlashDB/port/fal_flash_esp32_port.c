@@ -19,7 +19,7 @@
 
 static SemaphoreHandle_t s_lock = NULL;
 
-const static esp_partition_t *partition;
+const static esp_partition_t *partition = NULL;
 
 #define LOCK()                                 \
     do                                         \
@@ -51,51 +51,73 @@ static int init(void)
     // values set in partitions.csv for the partition named "flashdb".
     partition = esp_partition_find_first(0x40, 0x00, "flashdb");
 
-    assert(partition != NULL);
+    if (partition == NULL) {
+        ESP_LOGE("FAL", "FlashDB partition not found!");
+        return -1;
+    }
 
-    return 1;
+    ESP_LOGI("FAL", "FlashDB partition found at 0x%08x, size: %d bytes",
+             partition->address, partition->size);
+
+    return 0;
 }
 
 static int read(long offset, uint8_t *buf, size_t size)
 {
     esp_err_t ret;
 
+    if (partition == NULL) {
+        return -1;
+    }
+
     LOCK();
     ret = esp_partition_read(partition, offset, buf, size);
     UNLOCK();
 
-    return ret;
+    return (ret == ESP_OK) ? size : -1;
 }
 
 static int write(long offset, const uint8_t *buf, size_t size)
 {
     esp_err_t ret;
 
+    if (partition == NULL) {
+        return -1;
+    }
+
     LOCK();
     ret = esp_partition_write(partition, offset, buf, size);
     UNLOCK();
 
-    return ret;
+    return (ret == ESP_OK) ? size : -1;
 }
 
 static int erase(long offset, size_t size)
 {
     esp_err_t ret;
-    int32_t erase_size = ((size - 1) / FLASH_ERASE_MIN_SIZE) + 1;
+    size_t aligned_size;
+
+    if (partition == NULL) {
+        return -1;
+    }
+
+    // Align size to erase block size (4KB for ESP32)
+    aligned_size = ((size + FLASH_ERASE_MIN_SIZE - 1) / FLASH_ERASE_MIN_SIZE) * FLASH_ERASE_MIN_SIZE;
 
     LOCK();
-    ret = esp_partition_erase_range(partition, offset, erase_size * FLASH_ERASE_MIN_SIZE);
+    ret = esp_partition_erase_range(partition, offset, aligned_size);
     UNLOCK();
 
-    return ret;
+    return (ret == ESP_OK) ? aligned_size : -1;
 }
 
-const struct fal_flash_dev nor_flash0 =
-    {
-        .name = NOR_FLASH_DEV_NAME,
-        .addr = 0x0,                      // address is relative to beginning of partition; 0x0 is start of the partition
-        .len = 1024 * 1024,               // size of the partition as specified in partitions.csv
-        .blk_size = FLASH_ERASE_MIN_SIZE, // must be 4096 bytes
-        .ops = {init, read, write, erase},
-        .write_gran = 8, // 8 bit write granularity for ESP32
+/* The flash device definition that will be registered to FAL */
+const struct fal_flash_dev esp32_flash =
+{
+    .name       = "esp32_flash",
+    .addr       = 0x0,                       // address is relative to beginning of partition
+    .len        = FDB_TOTAL_PARTITION_SIZE,  // Total size of the partition as specified in partitions.csv
+    .blk_size   = FLASH_ERASE_MIN_SIZE,      // 4KB block size for ESP32
+    .ops        = {init, read, write, erase},
+    .write_gran = FDB_WRITE_GRAN,            // Use FDB_WRITE_GRAN from fdb_cfg.h
 };

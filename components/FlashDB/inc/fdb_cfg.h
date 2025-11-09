@@ -3,12 +3,10 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
 /**
  * @file
  * @brief configuration file
  */
-
 #ifndef _FDB_CFG_H_
 #define _FDB_CFG_H_
 
@@ -34,9 +32,9 @@
 
 /* --- Flash Parameters Configuration --- */
 /* The flash write granularity, unit: bit.
- * Recommended value for ESP32 is 8. (e.g., 1 for NOR Flash, 8 for STM32F2/F4)
- * @note You must define it for a value. */
-#define FDB_WRITE_GRAN 8
+ * This value depends on your flash chip's smallest programmable unit.
+ * For ESP32 SPI flash, the recommended value is 1 bit for robust operation. */
+#define FDB_WRITE_GRAN 1
 
 /* --- Timestamp Configuration --- */
 // Uncomment to enable 64-bit timestamps for TSDB. Default is 32-bit.
@@ -48,6 +46,10 @@
 // Ensure their sum does not exceed the size of the physical "flashdb" partition in partitions.csv.
 #define FDB_KVDB1_SIZE (512 * 1024) // Size for KVDB partition (bytes)
 #define FDB_TSDB1_SIZE (512 * 1024) // Size for TSDB partition (bytes)
+
+// Total size of the FlashDB partition in partitions.csv.
+// This must be equal to or greater than the sum of FDB_KVDB1_SIZE and FDB_TSDB1_SIZE.
+#define FDB_TOTAL_PARTITION_SIZE (FDB_KVDB1_SIZE + FDB_TSDB1_SIZE)
 
 
 /* ================================================================================================= */
@@ -63,8 +65,8 @@
 /* log print macro using ESP_LOG.
  * Need to include esp_log.h when setting FDB_PRINT to ESP_LOGI().
  * default EF_PRINT macro is printf() */
-//#include <esp_log.h>
-//#define FDB_PRINT(...) ESP_LOGI("fdb", __VA_ARGS__)
+#include <esp_log.h>
+#define FDB_PRINT(...) ESP_LOGI("fdb", __VA_ARGS__)
 
 /* print debug information */
 #define FDB_DEBUG_ENABLE

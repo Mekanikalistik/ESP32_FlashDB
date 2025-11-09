@@ -49,6 +49,10 @@ This file is your central point for configuring FlashDB's core features and para
 #define FDB_KVDB1_SIZE (512 * 1024) // Size for KVDB partition (bytes)
 #define FDB_TSDB1_SIZE (512 * 1024) // Size for TSDB partition (bytes)
 
+// Define the total size of the "flashdb" partition as the sum of logical partitions.
+// This macro is used in `fal_flash_esp32_port.c` to define the flash device length.
+#define FDB_TOTAL_PARTITION_SIZE (FDB_KVDB1_SIZE + FDB_TSDB1_SIZE)
+
 /* ================================================================================================= */
 /* ============================= End FlashDB Configuration Section ============================= */
 /* ================================================================================================= */
@@ -137,10 +141,15 @@ Include `flashdb.h` in your application files and ensure the FlashDB initializat
 
 ```c
 #include <flashdb.h> // Main FlashDB header
+#include <fal.h>     // Required for fal_init()
+#include <esp_log.h> // Required for ESP_LOGI
 
 void app_main()
 {
    ESP_LOGI("APP", "Starting FlashDB ESP-IDF Demo");
+
+   // Initialize FAL (Flash Abstraction Layer) explicitly
+   fal_init();
 
    // Initialize FlashDB (KVDB and TSDB)
    flashdb_app_init();
@@ -153,8 +162,10 @@ void app_main()
 
 *   **No Core Source Code Modification:** This component is designed to work without modifying any of the core FlashDB library source files (`fal.c`, `fal_partition.c`, `fdb.c`, etc.). All ESP-IDF specific adaptations are confined to `fal_flash_esp32_port.c` and configuration headers.
 *   **`FDB_WRITE_GRAN`:** For ESP32 SPI flash, `FDB_WRITE_GRAN` should be set to `1` bit in `fdb_cfg.h`. This value reflects the smallest programmable unit of the flash, ensuring optimal performance and data integrity with FlashDB's internal mechanisms.
+*   **`FDB_TOTAL_PARTITION_SIZE`:** This macro, defined in `fdb_cfg.h`, represents the total size of the physical "flashdb" partition in `partitions.csv`. It is crucial for correctly configuring the flash device length in `fal_flash_esp32_port.c`.
+*   **Explicit `fal_init()`:** Ensure `fal_init()` is called explicitly in your `main.c` before `flashdb_app_init()` to properly initialize the Flash Abstraction Layer and detect partitions.
 *   **Error Handling:** The `fal_flash_esp32_port.c` includes robust error handling for partition discovery, logging errors with `ESP_LOGE` and returning appropriate error codes.
-*   **Logging:** FlashDB's logging (`FDB_PRINT`) is configured to use ESP-IDF's `ESP_LOGI` for better integration with the system's logging framework.
+*   **Logging (`ESP_LOGI`):** FlashDB's logging (`FDB_PRINT`) is configured to use ESP-IDF's `ESP_LOGI` for better integration with the system's logging framework. Ensure `esp_log.h` is included in any file using `FDB_PRINT` if not already included by other means (e.g., in `fal_flash_esp32_port.c`).
 *   **Warnings in Samples:** The provided sample files might generate compiler warnings (`-Wmaybe-uninitialized`) due to strict ESP-IDF compiler settings. These are often handled by adding `-Wno-error=maybe-uninitialized` to your project's root `CMakeLists.txt`.
 *   **Timestamp Format:** For 32-bit timestamps, ensure that any `printf` format specifiers used for `fdb_time_t` are `ld` (for `long int`).
 ```

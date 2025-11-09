@@ -139,7 +139,7 @@ int flashdb_demo(void)
 
 void app_main()
 {
-    printf("FlashDB ESP32 SPI Flash Demo\n");
+    ESP_LOGI("APP", "FlashDB ESP32 SPI Flash Demo");
 
     /* Initialize NVS — it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();
@@ -162,14 +162,15 @@ void app_main()
     printf("%ldMB %s flash\n", size_flash_chip / (1024 * 1024),
            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
+    fal_init(); // Initialize FAL explicitly
+
     flashdb_demo();
 
-    for (int i =20; i >= 0; i--)
+    for (int i =12; i >= 0; i--)
     {
-        printf("Restarting in %d seconds...\n", i);
+        ESP_LOGI("APP", "Restarting in %d seconds...", i);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-    printf("Restarting now.\n");
-    fflush(stdout);
+    ESP_LOGI("APP", "Restarting now.");
     esp_restart();
 }

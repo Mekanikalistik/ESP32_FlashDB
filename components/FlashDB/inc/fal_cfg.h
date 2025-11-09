@@ -11,18 +11,18 @@
 
 //#define FAL_DEBUG 1
 #define FAL_PART_HAS_TABLE_CFG
-#define NOR_FLASH_DEV_NAME "norflash0"
+#define NOR_FLASH_DEV_NAME "esp32_flash"
 
 //#define FAL_PART_TABLE_FLASH_DEV_NAME NOR_FLASH_DEV_NAME
 //#define FAL_PART_TABLE_END_OFFSET      65536
 
 /* ===================== Flash device Configuration ========================= */
-extern const struct fal_flash_dev nor_flash0;
+extern const struct fal_flash_dev esp32_flash;
 
 /* flash device table */
 #define FAL_FLASH_DEV_TABLE \
 {                           \
-    &nor_flash0,            \
+    &esp32_flash,            \
 }
 /* ====================== Partition Configuration ========================== */
 #ifdef FAL_PART_HAS_TABLE_CFG
